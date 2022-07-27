@@ -1,11 +1,17 @@
-// TODO: JSON errors
-// TODO: auth
-// TODO: 404?
-
+use auth::JWTClaims;
 use chrono::{DateTime, Utc};
+use jwt_compact::{
+    alg::{Hs256, Hs256Key},
+    AlgorithmExt,
+    Claims,
+    Header,
+    Token,
+    UntrustedToken,
+};
 use serde::{Deserialize, Serialize};
 use worker::{js_sys::encode_uri_component, *};
 
+mod auth;
 mod utils;
 
 const SLUGS_KV: &str = "SLUGS";
@@ -14,6 +20,7 @@ const SLUGS_KV: &str = "SLUGS";
 struct StoredRedirect {
     pub url: String,
     pub created_at: DateTime<Utc>,
+    pub user: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -33,10 +40,26 @@ pub async fn main(
     let router = Router::new();
 
     router
-        .get("/", |_, _| {
+        .get("/", |_, ctx| {
+            let claims = JWTClaims {
+                user: "ben".into(),
+            };
+
+            let h = Header::default();
+            let c = Claims::new(claims);
+            let k = Hs256Key::new(ctx.secret("JWT_SECRET").unwrap().to_string().as_bytes());
+
+            let tkn = Hs256.token(h, &c, &k).unwrap();
+            console_log!("token = {}", tkn);
+
+            let t = UntrustedToken::new("eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYmVuIn0.P__gYKgAMyoqNNdR4FnpyttnadpqAJhrMBDFAxFXf18").unwrap();
+            let t: Token<JWTClaims> = Hs256.validate_integrity(&t, &k).unwrap();
+
+            console_log!("{:?}", t.claims());
+
             Response::ok("ben's dumb url shortener thing lol")
         })
-        .get_async("/:slug", |req, ctx| async move {
+        .get_async("/:slug", |_req, ctx| async move {
             if let Some(slug) = ctx.param("slug") {
                 let kv = ctx.kv(SLUGS_KV)?;
 
@@ -55,15 +78,11 @@ pub async fn main(
                 }
             }
 
-            // TODO: figure this out
-
-            let mut u = req.url()?;
-            u.set_path("/");
-
-            return Response::redirect(u);
+            return Response::error("Not Found", 404);
         })
-        .get_async("/slugs", |_req, ctx| async move {
-            // TODO: auth
+        .get_async("/slugs", |req, ctx| async move {
+            verify_jwt!(req, ctx);
+
             let kv = ctx.kv(SLUGS_KV)?;
             let slugs = kv.list().execute().await?;
             let keys = slugs
@@ -74,8 +93,8 @@ pub async fn main(
 
             Response::from_json(&keys)
         })
-        .delete_async("/slugs/:slug", |_req, ctx| async move {
-            // TODO: auth
+        .delete_async("/slugs/:slug", |req, ctx| async move {
+            verify_jwt!(req, ctx);
 
             if let Some(slug) = ctx.param("slug") {
                 let kv = ctx.kv(SLUGS_KV)?;
@@ -85,7 +104,8 @@ pub async fn main(
             Ok(Response::empty()?.with_status(204))
         })
         .post_async("/slugs", |mut req, ctx| async move {
-            // TODO: auth
+            let token = verify_jwt!(req, ctx);
+            let claims = token.claims();
 
             match req.json::<CreateRedirectPayload>().await {
                 Ok(body) => {
@@ -109,6 +129,7 @@ pub async fn main(
                     let to_store = StoredRedirect {
                         url: body.url,
                         created_at: Utc::now(),
+                        user: claims.custom.user.clone(),
                     };
 
                     let kv = ctx.kv(SLUGS_KV)?;
