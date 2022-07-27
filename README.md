@@ -19,6 +19,13 @@ Authorization: <api-key>
 ```
 **Returns**: `HTTP 204`
 
+### Get Shortlink Info:
+```http
+GET /slugs/:slug
+Authorization: <api-key>
+```
+
+**Returns**: `{"url": "<url>", "created_at": "<ISO-8601 date>", "user": "<user>"}`
 
 ### List All Shortlinks:
 ```http
