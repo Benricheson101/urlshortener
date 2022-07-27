@@ -41,14 +41,7 @@ pub async fn main(
                 if let Ok(Some(redirect_to)) =
                     kv.get(slug).json::<StoredRedirect>().await
                 {
-                    console_log!(
-                        "[slug={}] redirecting to: {}",
-                        &slug,
-                        &redirect_to.url
-                    );
-
                     let url = Url::parse(&redirect_to.url)?;
-
                     return Response::redirect(url);
                 }
             }
