@@ -1,13 +1,4 @@
-use auth::JWTClaims;
 use chrono::{DateTime, Utc};
-use jwt_compact::{
-    alg::{Hs256, Hs256Key},
-    AlgorithmExt,
-    Claims,
-    Header,
-    Token,
-    UntrustedToken,
-};
 use serde::{Deserialize, Serialize};
 use worker::{js_sys::encode_uri_component, *};
 
@@ -40,23 +31,7 @@ pub async fn main(
     let router = Router::new();
 
     router
-        .get("/", |_, ctx| {
-            let claims = JWTClaims {
-                user: "ben".into(),
-            };
-
-            let h = Header::default();
-            let c = Claims::new(claims);
-            let k = Hs256Key::new(ctx.secret("JWT_SECRET").unwrap().to_string().as_bytes());
-
-            let tkn = Hs256.token(h, &c, &k).unwrap();
-            console_log!("token = {}", tkn);
-
-            let t = UntrustedToken::new("eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYmVuIn0.P__gYKgAMyoqNNdR4FnpyttnadpqAJhrMBDFAxFXf18").unwrap();
-            let t: Token<JWTClaims> = Hs256.validate_integrity(&t, &k).unwrap();
-
-            console_log!("{:?}", t.claims());
-
+        .get("/", |_, _| {
             Response::ok("ben's dumb url shortener thing lol")
         })
         .get_async("/:slug", |_req, ctx| async move {
