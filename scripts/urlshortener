@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+
+to_lower() {
+	tr '[A-Z]' '[a-z]' <<< "$@"
+}
+
+echoerr() {
+	echo "$@" 1>&2
+}
+
+print_help() {
+	cat <<-EOF
+	-- Ben's dumb URL shortener --
+		$ urlshortener all
+		$ urlshortener get <slug>
+		$ urlshortener create <slug> <url>
+		$ urlshortener delete <slug>
+	EOF
+}
+
+format_create_payload() {
+	# building json with JQ is safer than formatted strings, but likely not necessary. doesn't hurt though
+	if which jq > /dev/null; then
+		jq \
+			-c \
+			--null-input \
+			--arg 'slug' "$1" \
+			--arg 'url' "$2" \
+			'{"url": $url, "slug": $slug}'
+	else
+			printf '{"url": "%s", "slug": "%s"}' $1 $2
+	fi
+}
+
+create_shortlink() {
+	curl \
+		-fsS\
+		"$URL_SHORTENER_BASE_URL/slugs" \
+		-X POST \
+		-H 'Content-Type: application/json' \
+		-H "Authorization: $URL_SHORTENER_API_KEY" \
+		-d "$(format_create_payload "$1" "$2")"
+
+	if [ $? != 0 ]; then
+		return 1
+	fi
+
+	printf '%s/%s' "$URL_SHORTENER_BASE_URL" "$1"
+}
+
+delete_shortlink() {
+	curl \
+		-fsS\
+		"$URL_SHORTENER_BASE_URL/slugs/$1" \
+		-X DELETE \
+		-H "Authorization: $URL_SHORTENER_API_KEY"
+
+	if [ $? != 0 ]; then
+		return 1
+	fi
+}
+
+get_shortlink() {
+	info=$(curl \
+		-fsS\
+		"$URL_SHORTENER_BASE_URL/slugs/$1" \
+		-X GET \
+		-H "Authorization: $URL_SHORTENER_API_KEY")
+
+	if [ $? != 0 ]; then
+		return 1
+	fi
+
+	if which jq > /dev/null; then
+		jq <<< "$info"
+	else
+		echo -n "$info"
+	fi
+}
+
+get_all_shortlinks() {
+	info=$(curl \
+		-fsS\
+		"$URL_SHORTENER_BASE_URL/slugs" \
+		-X GET \
+		-H "Authorization: $URL_SHORTENER_API_KEY")
+
+	if [ $? != 0 ]; then
+		return 1
+	fi
+
+	if which jq > /dev/null; then
+		jq <<< "$info"
+	else
+		echo -n "$info"
+	fi
+}
+
+urlshortener_cli() {
+	if [ -z "$URL_SHORTENER_API_KEY" ]; then
+		echoerr 'missing $URL_SHORTENER_API_KEY'
+		return 1
+	fi
+
+	if [ -z "$URL_SHORTENER_BASE_URL" ]; then
+		echoerr 'missing $URL_SHORTENER_BASE_URL'
+		return 1
+	fi
+
+	ACTION="$(to_lower $1)"
+
+	case "$ACTION" in
+		'create' | 'add')
+			if [ -z "$2" ]; then
+				echoerr 'missing slug'
+				return 1
+			fi
+
+			SLUG="$2"
+
+			if [ -z "$3" ]; then
+				echoerr 'missing long url'
+				return 1
+			fi
+
+			LONG_URL="$3"
+
+			create_shortlink "$SLUG" "$LONG_URL"
+
+			;;
+
+		'rm' | 'del' | 'remove' | 'delete')
+			if [ -z "$2" ]; then
+				echoerr 'missing slug'
+				return 1
+			fi
+			SLUG="$2"
+
+			delete_shortlink "$SLUG"
+			;;
+
+		'get' | 'info')
+			if [ -z "$2" ]; then
+				echoerr 'missing slug'
+				return 1
+			fi
+			SLUG="$2"
+
+			get_shortlink "$SLUG"
+			;;
+
+		'getall' | 'all')
+			get_all_shortlinks
+			;;
+
+		'help')
+			print_help
+			;;
+
+		*)
+			print_help
+			return 1
+			;;
+	esac
+}
+
+urlshortener_cli $@
+
+# TODO: make a thing for creating API key jwt
+
+# vim:noet
