@@ -8,4 +8,4 @@ newline_style = "Unix"
 group_imports = "StdExternalCrate"
 report_todo = "Never"
 use_field_init_shorthand = true
-wrap_comments = true
+wrap_comments = false

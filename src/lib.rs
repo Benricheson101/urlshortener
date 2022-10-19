@@ -68,7 +68,7 @@ pub async fn main(
                 let kv = ctx.kv(SLUGS_KV)?;
                 return match kv.get(slug).json::<StoredRedirect>().await? {
                     Some(shortlink) => Response::from_json(&shortlink),
-                    None => Response::error("Not Found", 404)
+                    None => Response::error("Not Found", 404),
                 };
             }
 
