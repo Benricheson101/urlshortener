@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use worker::{js_sys::encode_uri_component, *};
@@ -32,7 +34,10 @@ pub async fn main(
 
     router
         .get("/", |_, _| {
-            Response::ok("ben's dumb url shortener thing lol")
+            Response::redirect(
+                Url::from_str("https://github.com/benricheson101/urlshortener")
+                    .unwrap(),
+            )
         })
         .get_async("/:slug", |_req, ctx| async move {
             if let Some(slug) = ctx.param("slug") {

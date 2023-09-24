@@ -15,6 +15,7 @@ print_help() {
 		$ urlshortener get <slug>
 		$ urlshortener create <slug> <url>
 		$ urlshortener delete <slug>
+		$ urlshortener create-token <username>
 	EOF
 }
 
@@ -96,6 +97,29 @@ get_all_shortlinks() {
 	fi
 }
 
+create_jwt() {
+	if [ -z "$URL_SHORTENER_JWT_SECRET" ]; then
+		echoerr 'missing $URL_SHORTENER_JWT_SECRET'
+		return 1
+	fi
+
+	base64url() {
+		printf '%s' "${1:-$(< /dev/stdin)}" | basenc --base64url -w0 < /dev/stdin | tr -d '='
+	}
+
+	header="{\"typ\":\"JWT\",\"alg\":\"HS256\",\"iss\":\"URLShortener CLI Script\",\"iat\":\"`date +%s`\"}"
+	body="{\"user\":\"${1}\"}"
+
+	header_b64="$(base64url "$header")"
+	body_b64="$(base64url "$body")"
+
+	payload="${header_b64}.${body_b64}"
+
+	sig="$(printf '%s' "$payload" | openssl dgst -SHA256 -binary -hmac "$URL_SHORTENER_JWT_SECRET" | base64url)"
+
+	printf '%s' "${payload}.${sig}"
+}
+
 urlshortener_cli() {
 	if [ -z "$URL_SHORTENER_API_KEY" ]; then
 		echoerr 'missing $URL_SHORTENER_API_KEY'
@@ -153,6 +177,21 @@ urlshortener_cli() {
 			get_all_shortlinks
 			;;
 
+		'create-user' | 'create-token')
+			if [ -z "$2" ]; then
+				echoerr 'missing username'
+				return 1
+			fi
+
+			if ! command -v openssl > /dev/null; then
+				echoerr 'missing openssl in PATH'
+				return 1
+			fi
+
+			USER="$2"
+			create_jwt "$USER"
+			;;
+
 		'help')
 			print_help
 			;;
@@ -165,7 +204,5 @@ urlshortener_cli() {
 }
 
 urlshortener_cli $@
-
-# TODO: make a thing for creating API key jwt
 
 # vim:noet
