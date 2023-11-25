@@ -36,7 +36,7 @@ Authorization: <api-key>
 **Returns**: `String[]`
 
 ## Running for Yourself
-1. Create a secrets for generating API keys. The OpenSSL CLI works well for this (`openssl rand -hex 64`), but any 64 character long string should work.
+1. Create a secrets for generating API keys. The OpenSSL CLI works well for this (`openssl rand -hex 32`), but any 64 character long string should work.
 
 2. Deploy this repo to your Cloudflare Worker account using the wrangler CLI
 
